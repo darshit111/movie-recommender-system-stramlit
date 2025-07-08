@@ -10,11 +10,19 @@ def fetch_poster(movie_id):
     data = response.json()
     return 'https://image.tmdb.org/t/p/w500' + data['poster_path']
 
+
 def recommend(movies, similarity):
-    try:
-        movie_index = movie_s[movie_s['title'] == movies].index[0]
-    except IndexError:
+    # Debug: check if the selected movie exists
+    st.write(f"Selected movie: {movies}")
+
+    if movies not in movie_s['title'].values:
         st.error(f"Movie '{movies}' not found in dataset.")
+        return [], []
+
+    movie_index = movie_s[movie_s['title'] == movies].index[0]
+
+    if movie_index >= len(similarity):
+        st.error(f"Invalid movie index: {movie_index}")
         return [], []
 
     distances = similarity[movie_index]
