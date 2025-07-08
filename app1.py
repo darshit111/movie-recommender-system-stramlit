@@ -58,22 +58,23 @@ movie_s = pd.DataFrame(movies_dict)
 
 st.title('🎬 Movie Recommender System by Darshit Rudani')
 
-# File uploader for large model file
+# Load similarity.pkl automatically from Google Drive
 similarity = load_similarity()
 
-    selected_movie_name = st.selectbox(
-        '🎥 Choose a movie to get recommendations:',
-        movie_s['title'].values
-    )
+selected_movie_name = st.selectbox(
+    '🎥 Choose a movie to get recommendations:',
+    movie_s['title'].values
+)
 
-    if st.button('🔍 Recommend'):
-        names, posters = recommend(selected_movie_name, similarity)
+if st.button('🔍 Recommend'):
+    names, posters = recommend(selected_movie_name, similarity)
 
-        col1, col2, col3, col4, col5 = st.columns(5)
-        cols = [col1, col2, col3, col4, col5]
-        for i in range(5):
-            with cols[i]:
-                st.text(names[i])
-                st.image(posters[i])
+    col1, col2, col3, col4, col5 = st.columns(5)
+    cols = [col1, col2, col3, col4, col5]
+
+    for i in range(5):
+        with cols[i]:
+            st.text(names[i])
+            st.image(posters[i])
 else:
     st.warning("⚠ Please upload the 'similarity.pkl' file to use the recommendation system.")
