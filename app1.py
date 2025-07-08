@@ -1,3 +1,16 @@
+import requests
+import io
+
+# Load similarity.pkl from Google Drive
+@st.cache_resource
+def load_similarity():
+    file_id = "1uLIXz0aE-uFJAT_RngngIVlcVuzxiA-3"
+    url = f"https://drive.google.com/uc?id={file_id}"
+    response = requests.get(url)
+    return pickle.load(io.BytesIO(response.content))
+
+
+
 import streamlit as st
 import pickle
 import pandas as pd
@@ -46,10 +59,7 @@ movie_s = pd.DataFrame(movies_dict)
 st.title('🎬 Movie Recommender System by Darshit Rudani')
 
 # File uploader for large model file
-uploaded_file = st.file_uploader("📂 Upload 'similarity.pkl' file to continue", type="pkl")
-
-if uploaded_file is not None:
-    similarity = pickle.load(uploaded_file)
+similarity = load_similarity()
 
     selected_movie_name = st.selectbox(
         '🎥 Choose a movie to get recommendations:',
