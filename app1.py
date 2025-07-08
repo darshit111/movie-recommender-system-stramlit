@@ -11,7 +11,12 @@ def fetch_poster(movie_id):
     return 'https://image.tmdb.org/t/p/w500' + data['poster_path']
 
 def recommend(movies, similarity):
-    movie_index = movie_s[movie_s['title'] == movies].index[0]
+    try:
+        movie_index = movie_s[movie_s['title'] == movies].index[0]
+    except IndexError:
+        st.error(f"Movie '{movies}' not found in dataset.")
+        return [], []
+
     distances = similarity[movie_index]
     movie_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
 
@@ -24,6 +29,7 @@ def recommend(movies, similarity):
         recommended_movies_posters.append(fetch_poster(movie_id))
 
     return recommended_movies, recommended_movies_posters
+
 
 # Load movie dictionary
 movies_dict = pickle.load(open('movie_dictionary.pkl', 'rb'))
