@@ -2,81 +2,60 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
-import io
-import gdown
 
-st.set_page_config(page_title="🎬 Movie Recommender", layout="wide")
+# 🔄 Download helper from Google Drive
+def download_from_google_drive(file_id, destination):
+    URL = "https://docs.google.com/uc?export=download"
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
 
-# Loading spinner for startup
-with st.spinner('Loading application...'):
-    # Load movie dictionary from Google Drive
-    @st.cache_resource
-    def load_movie_data():
-        file_id = "<1kPBJDR_tJbqIBcKmoHpWC329h1yp6b3z>"
-        url = f"https://drive.google.com/uc?id={file_id}"
-        output = 'movie_dictionary.pkl'
-        gdown.download(url, output, quiet=False)
-        with open(output, 'rb') as f:
-            return pd.DataFrame(pickle.load(f))
+    def get_confirm_token(response):
+        for key, value in response.cookies.items():
+            if key.startswith('download_warning'):
+                return value
+        return None
 
-    # Load similarity.pkl from Google Drive
-    @st.cache_resource
-    def load_similarity():
-        file_id = "1uLIXz0aE-uFJAT_RngngIVlcVuzxiA-3"
-        url = f"https://drive.google.com/uc?id={file_id}"
-        output = 'similarity.pkl'
-        gdown.download(url, output, quiet=False)
-        with open(output, 'rb') as f:
-            return pickle.load(f)
+    token = get_confirm_token(response)
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
 
-    movie_s = load_movie_data()
-    similarity = load_similarity()
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(32768):
+            if chunk:
+                f.write(chunk)
 
-# --- Authentication (basic demo only) ---
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+# ✅ Load movie dictionary
+@st.cache_resource
+def load_movie_data():
+    file_id = "1kPBJDR_tJbqIBcKmoHpWC329h1yp6b3z"  # movie_dictionary.pkl
+    download_from_google_drive(file_id, "movie_dictionary.pkl")
+    with open("movie_dictionary.pkl", "rb") as f:
+        return pd.DataFrame(pickle.load(f))
 
-if not st.session_state.logged_in:
-    with st.form("login_form"):
-        st.subheader("🔐 Login to Continue")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        login_btn = st.form_submit_button("Login")
+# ✅ Load similarity matrix
+@st.cache_resource
+def load_similarity():
+    file_id = "1uLIXz0aE-uFJAT_RngngIVlcVuzxiA-3"  # similarity.pkl
+    download_from_google_drive(file_id, "similarity.pkl")
+    with open("similarity.pkl", "rb") as f:
+        return pickle.load(f)
 
-        if login_btn:
-            if username == "admin" and password == "admin":  # Demo only
-                st.success("✅ Logged in successfully!")
-                st.session_state.logged_in = True
-            else:
-                st.error("❌ Invalid credentials")
-    st.stop()
-
-# --- Main UI ---
-st.markdown("<h1 style='text-align: center;'>🎬 Movie Recommender System by Darshit Rudani</h1>", unsafe_allow_html=True)
-
-selected_movie_name = st.selectbox(
-    '🎥 Choose a movie to get recommendations:',
-    movie_s['title'].values
-)
-
+# ✅ Fetch poster from TMDB API
 def fetch_poster(movie_id):
-    try:
-        response = requests.get(
-            f'https://api.themoviedb.org/3/movie/{movie_id}?api_key=c1c0f2de87af947d3ca22514029f87b7&language=en-US'
-        )
-        data = response.json()
-        return 'https://image.tmdb.org/t/p/w500' + data['poster_path']
-    except:
-        return "https://via.placeholder.com/200x300?text=No+Image"
+    response = requests.get(
+        f"https://api.themoviedb.org/3/movie/{movie_id}?api_key=c1c0f2de87af947d3ca22514029f87b7&language=en-US"
+    )
+    data = response.json()
+    return f"https://image.tmdb.org/t/p/w500{data['poster_path']}"
 
-def recommend(movie_title):
-    if movie_title not in movie_s['title'].values:
-        st.error(f"Movie '{movie_title}' not found.")
-        return [], []
-
-    movie_index = movie_s[movie_s['title'] == movie_title].index[0]
+# ✅ Recommendation logic
+def recommend(movie, similarity):
+    movie_index = movie_s[movie_s['title'] == movie].index[0]
     distances = similarity[movie_index]
-    movie_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+    movie_list = sorted(
+        list(enumerate(distances)), reverse=True, key=lambda x: x[1]
+    )[1:6]
 
     recommended_movies = []
     recommended_posters = []
@@ -88,13 +67,23 @@ def recommend(movie_title):
 
     return recommended_movies, recommended_posters
 
-if st.button('🔍 Recommend'):
-    names, posters = recommend(selected_movie_name)
-    if names:
-        col1, col2, col3, col4, col5 = st.columns(5)
-        cols = [col1, col2, col3, col4, col5]
+# 🎬 UI
+st.title("🎬 Movie Recommender System by Darshit Rudani")
 
-        for i in range(5):
-            with cols[i]:
-                st.image(posters[i])
-                st.caption(names[i])
+with st.spinner('🔁 Please wait while the data loads...'):
+    movie_s = load_movie_data()
+    similarity = load_similarity()
+
+selected_movie_name = st.selectbox(
+    "Select a movie to get recommendations:",
+    movie_s['title'].values
+)
+
+if st.button('Recommend'):
+    names, posters = recommend(selected_movie_name, similarity)
+
+    cols = st.columns(5)
+    for i in range(5):
+        with cols[i]:
+            st.text(names[i])
+            st.image(posters[i])
