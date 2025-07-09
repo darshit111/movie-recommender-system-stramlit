@@ -5,26 +5,60 @@ import requests
 import io
 import gdown
 
-# Load movie dictionary
-movies_dict = pickle.load(open('movie_dictionary.pkl', 'rb'))
-movie_s = pd.DataFrame(movies_dict)
+st.set_page_config(page_title="🎬 Movie Recommender", layout="wide")
 
-# Load similarity.pkl from Google Drive using gdown
-@st.cache_resource
-def load_similarity():
-    file_id = "1uLIXz0aE-uFJAT_RngngIVlcVuzxiA-3"  # ✅ your correct file ID
-    url = f"https://drive.google.com/uc?id={file_id}"
+# Loading spinner for startup
+with st.spinner('Loading application...'):
+    # Load movie dictionary from Google Drive
+    @st.cache_resource
+    def load_movie_data():
+        file_id = "<1kPBJDR_tJbqIBcKmoHpWC329h1yp6b3z>"
+        url = f"https://drive.google.com/uc?id={file_id}"
+        output = 'movie_dictionary.pkl'
+        gdown.download(url, output, quiet=False)
+        with open(output, 'rb') as f:
+            return pd.DataFrame(pickle.load(f))
 
-    try:
+    # Load similarity.pkl from Google Drive
+    @st.cache_resource
+    def load_similarity():
+        file_id = "1uLIXz0aE-uFJAT_RngngIVlcVuzxiA-3"
+        url = f"https://drive.google.com/uc?id={file_id}"
         output = 'similarity.pkl'
         gdown.download(url, output, quiet=False)
         with open(output, 'rb') as f:
             return pickle.load(f)
-    except Exception as e:
-        st.error(f"❌ Error loading pickle file: {e}")
-        return None
 
-# Fetch movie poster from TMDB API
+    movie_s = load_movie_data()
+    similarity = load_similarity()
+
+# --- Authentication (basic demo only) ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    with st.form("login_form"):
+        st.subheader("🔐 Login to Continue")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Login")
+
+        if login_btn:
+            if username == "admin" and password == "admin":  # Demo only
+                st.success("✅ Logged in successfully!")
+                st.session_state.logged_in = True
+            else:
+                st.error("❌ Invalid credentials")
+    st.stop()
+
+# --- Main UI ---
+st.markdown("<h1 style='text-align: center;'>🎬 Movie Recommender System by Darshit Rudani</h1>", unsafe_allow_html=True)
+
+selected_movie_name = st.selectbox(
+    '🎥 Choose a movie to get recommendations:',
+    movie_s['title'].values
+)
+
 def fetch_poster(movie_id):
     try:
         response = requests.get(
@@ -35,18 +69,12 @@ def fetch_poster(movie_id):
     except:
         return "https://via.placeholder.com/200x300?text=No+Image"
 
-# Recommend movies
-def recommend(movie_title, similarity):
+def recommend(movie_title):
     if movie_title not in movie_s['title'].values:
         st.error(f"Movie '{movie_title}' not found.")
         return [], []
 
     movie_index = movie_s[movie_s['title'] == movie_title].index[0]
-
-    if movie_index >= len(similarity):
-        st.error("Invalid index found in similarity matrix.")
-        return [], []
-
     distances = similarity[movie_index]
     movie_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
 
@@ -60,27 +88,13 @@ def recommend(movie_title, similarity):
 
     return recommended_movies, recommended_posters
 
-# UI Starts Here
-st.title('🎬 Movie Recommender System by Darshit Rudani')
+if st.button('🔍 Recommend'):
+    names, posters = recommend(selected_movie_name)
+    if names:
+        col1, col2, col3, col4, col5 = st.columns(5)
+        cols = [col1, col2, col3, col4, col5]
 
-similarity = load_similarity()
-
-if similarity is not None:
-    selected_movie_name = st.selectbox(
-        '🎥 Choose a movie to get recommendations:',
-        movie_s['title'].values
-    )
-
-    if st.button('🔍 Recommend'):
-        names, posters = recommend(selected_movie_name, similarity)
-
-        if names and posters:
-            col1, col2, col3, col4, col5 = st.columns(5)
-            cols = [col1, col2, col3, col4, col5]
-
-            for i in range(5):
-                with cols[i]:
-                    st.text(names[i])
-                    st.image(posters[i])
-else:
-    st.warning("⏳ Loading similarity matrix. Please wait or refresh...")
+        for i in range(5):
+            with cols[i]:
+                st.image(posters[i])
+                st.caption(names[i])
